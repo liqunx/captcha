@@ -6,6 +6,14 @@ A simple [Laravel 5](http://www.laravel.com/) service provider for including the
 
 for Laravel 4 [Captcha for Laravel Laravel 4](https://github.com/mewebstudio/captcha/tree/master-l4)
 
+### 新增功能
+1. 增加无session支持
+2. 增加中间件自定义功能
+3. 增加存储驱动选择（目前支持session、cache存储方式）
+4. 后续会增加对jwt的支持
+
+###
+
 ## Preview
 ![Preview](http://i.imgur.com/HYtr744.png)
 
