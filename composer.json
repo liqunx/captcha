@@ -5,6 +5,12 @@
 	"keywords": ["laravel5 Captcha", "laravel5 Security", "Captcha", "session", "api"],
 	"homepage": "https://github.com/mewebstudio/captcha",
 	"license": "MIT",
+    "repositories": [
+        {
+            "type": "vcs",
+            "url": "https://github.com/liqunx/captcha.git"
+        }
+    ],
 	"authors": [
 		{
 			"name": "liqunx, Muharrem ERİN",
