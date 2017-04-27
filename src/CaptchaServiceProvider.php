@@ -27,12 +27,17 @@ class CaptchaServiceProvider extends ServiceProvider {
            $this->app->get('captcha[/{config}]', 'Mews\Captcha\LumenCaptchaController@getCaptcha');
         } else {
             if ((double) $this->app->version() >= 5.2) {
-                $this->app['router']->get('captcha/{config?}', '\Mews\Captcha\CaptchaController@getCaptcha')->middleware('web');
+                $this->app['router']->get('captcha/{config?}', '\Mews\Captcha\CaptchaController@getCaptcha')->middleware(config('captcha.routeAttributes.middleware',[]));
             } else {
                 $this->app['router']->get('captcha/{config?}', '\Mews\Captcha\CaptchaController@getCaptcha');
             }
         }
-
+        /**
+         * debug
+         */
+        if (config('app.debug')) {
+            $this->app['router']->get('debug/captcha/info', '\Mews\Captcha\CaptchaController@info');
+        }
         // Validator extensions
         $this->app['validator']->extend('captcha', function($attribute, $value, $parameters)
         {
@@ -59,7 +64,6 @@ class CaptchaServiceProvider extends ServiceProvider {
                 $app['Illuminate\Filesystem\Filesystem'],
                 $app['Illuminate\Config\Repository'],
                 $app['Intervention\Image\ImageManager'],
-                $app['Illuminate\Session\Store'],
                 $app['Illuminate\Hashing\BcryptHasher'],
                 $app['Illuminate\Support\Str']
             );

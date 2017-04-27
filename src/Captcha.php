@@ -20,7 +20,7 @@ use Illuminate\Hashing\BcryptHasher as Hasher;
 use Illuminate\Filesystem\Filesystem;
 use Illuminate\Support\Str;
 use Intervention\Image\ImageManager;
-use Illuminate\Session\Store as Session;
+use Mews\Captcha\Storages\Storage;
 
 /**
  * Class Captcha
@@ -47,7 +47,7 @@ class Captcha
     /**
      * @var Session
      */
-    protected $session;
+    protected $storage;
 
     /**
      * @var Hasher
@@ -155,9 +155,15 @@ class Captcha
     protected $invert = false;
 
     /**
-     * @var bool
+     * @var bool 是否大小写敏感
      */
     protected $sensitive = false;
+    
+    /**
+     * @var string
+     */
+    protected $token;
+
 
     /**
      * Constructor
@@ -165,7 +171,6 @@ class Captcha
      * @param Filesystem $files
      * @param Repository $config
      * @param ImageManager $imageManager
-     * @param Session $session
      * @param Hasher $hasher
      * @param Str $str
      * @throws Exception
@@ -175,7 +180,6 @@ class Captcha
         Filesystem $files,
         Repository $config,
         ImageManager $imageManager,
-        Session $session,
         Hasher $hasher,
         Str $str
     )
@@ -183,10 +187,18 @@ class Captcha
         $this->files = $files;
         $this->config = $config;
         $this->imageManager = $imageManager;
-        $this->session = $session;
+        $this->storage = $this->storage();
         $this->hasher = $hasher;
         $this->str = $str;
         $this->characters = config('captcha.characters','2346789abcdefghjmnpqrtuxyzABCDEFGHJMNPQRTUXYZ');
+        
+        /**
+         * set the token
+         */
+        $this->token = app()->request->header('access-token', null);
+        if (empty($token)) {
+            $this->token = app()->request->input('access_token', null);
+        }
     }
 
     /**
@@ -288,8 +300,8 @@ class Captcha
         {
             $bag .= $characters[rand(0, count($characters) - 1)];
         }
-
-        $this->session->put('captcha', [
+        $key = $this->storageKey();
+        $this->storage->put($key, [
             'sensitive' => $this->sensitive,
             'key'       => $this->hasher->make($this->sensitive ? $bag : $this->str->lower($bag))
         ]);
@@ -401,20 +413,21 @@ class Captcha
      */
     public function check($value)
     {
-        if ( ! $this->session->has('captcha'))
+        $storageKey = $this->storageKey();
+        if ( ! $this->storage->has($storageKey))
         {
             return false;
         }
 
-        $key = $this->session->get('captcha.key');
-
-        if ( ! $this->session->get('captcha.sensitive'))
+        $key = $this->storage->get($storageKey)['key'];
+        
+        if ( ! $this->storage->get($storageKey)['sensitive'])
         {
             $value = $this->str->lower($value);
         }
 
-        $this->session->remove('captcha');
-
+        $this->storage->forget($storageKey);
+       
         return $this->hasher->check($value, $key);
     }
 
@@ -438,6 +451,76 @@ class Captcha
     public function img($config = null)
     {
         return '<img src="' . $this->src($config) . '" alt="captcha">';
+    }
+    
+    
+    /**
+     * get storage
+     *
+     * @throws LaravelSmsException
+     *
+     * @return Storage
+     */
+    protected function storage()
+    {
+        if ($this->storage) {
+            return $this->storage;
+        }
+        $className = $this->getStorageClassName();
+        if (!class_exists($className)) {
+            throw new Exception("Generate storage failed, the class [$className] does not exists.");
+        }
+        $store = new $className();
+        if (!($store instanceof Storage)) {
+            throw new Exception("Generate storage failed, the class [$className] does not implement the interface [Mews\\Captcha\\Storages\\Storage].");
+        }
+
+        return $store;
+    }
+    
+    /**
+     * get the storage class name
+     *
+     * @return string
+     */
+    protected function getStorageClassName()
+    {
+        $className = config('captcha.storage.driver', null);
+        if ($className && is_string($className)) {
+            return $className;
+        }
+        $middleware = config('captcha.routeAttributes.middleware', null);
+        if ($middleware === 'web' || (is_array($middleware) && in_array('web', $middleware))) {
+            return 'Mews\Captcha\Storages\SessionStorage';
+        }
+        if ($middleware === 'api' || (is_array($middleware) && in_array('api', $middleware))) {
+            return 'Mews\Captcha\Storages\CacheStorage';
+        }
+
+        return 'Mews\Captcha\Storages\SessionStorage';
+    }
+    
+    /**
+     * get storageKey
+     *
+     * @return string
+     */
+    protected function storageKey()
+    {
+        if($this->getStorageClassName() == 'Mews\Captcha\Storages\SessionStorage'){
+            return 'captcha';
+        }
+        $split = '_';
+        $prefix = config('captcha.storage.prefix', 'captcha');
+        $args = func_get_args();
+        array_unshift($args, $this->token);
+        $args = array_filter($args, function ($value) {
+            return $value && is_string($value);
+        });
+        if (!(empty($args))) {
+            $prefix .= $split . implode($split, $args);
+        }
+        return $prefix;
     }
 
 }
